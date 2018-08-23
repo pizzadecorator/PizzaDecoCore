@@ -25,6 +25,15 @@ predictor = dlib.shape_predictor('./shape_predictor_68_face_landmarks.dat')
 #cap = cv2.VideoCapture(0)
 #cap.set(cv2.CAP_PROP_FPS, 5)
 
+def L2(r):
+	return (150 - r.center().x)**2 + (200 - r.center().y)**2
+	
+def scale(r):
+	return r.area()
+	
+def filter(r):
+	return
+	
 def f(id,fi,fl):
 	while True:
 		image = fi.get()
@@ -32,10 +41,17 @@ def f(id,fi,fl):
 		#print("running thread"+str(id))
 		
 		rects = detector(gray, 1)
-
-		indicators = None
-		if(rects == None): 
+		indicators = []
+		rects = [rect for rect in rects if (150 - rect.center().x)**2 + (200 - rect.center().y)**2 < 3500]
+		rects = sorted(rects, key=scale, reverse=True)
+		#rects = sorted(rects, key=scale, reverse=True)
+		
+		if len(rects) == 0: 
+			fl.send(None)
 			continue
+		rect_mean = rects[0]
+		#print(str(id) + str(rect_mean.center()))
+		'''
 		for (i, rect) in enumerate(rects):
 			shape = predictor(gray, rect)
 			indicators = face_utils.shape_to_np(shape)
@@ -44,16 +60,15 @@ def f(id,fi,fl):
 
 			for (x, y) in indicators:
 				cv2.circle(image, (x, y), 1, (0, 0, 255), -1)
-
-		if(indicators == None): 
-			continue
+		'''
+		shape = predictor(gray, rect_mean)
+		indicators = face_utils.shape_to_np(shape)
 		left = np.mean(indicators[36:42], axis=0).astype(int)
 		right = np.mean(indicators[42:48], axis=0).astype(int)
-		cv2.line(image, tuple(left), tuple(right), (255, 0, 0), 3)
-		angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
+		#cv2.line(image, tuple(left), tuple(right), (255, 0, 0), 3)
+		#angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
 
-		print(str(angle))
-		fl.send(image)
+		fl.send([left, right])
 
 fps_var = 0
 if __name__ == '__main__':
@@ -87,23 +102,29 @@ if __name__ == '__main__':
 		while True:
 			# Grab a single frame of video
 			ret, frame = cap.read()
-			cv2.imshow('Video', frame)
+			#cv2.imshow('Video', frame)
 
 			if frame_id%2 == 0:
 				if not fi.full():
 					fi.put(frame)
 					#print(frame_id)
 
-					cv2.imshow('Video', frame)
+					#cv2.imshow('Video', frame)
 
 					#print("FPS: ", int(1.0 / (time.time() - fps_var)))
 					fps_var = time.time()
 
 			#GET ALL DETECTIONS
-			for t in range(0,threads):
+			for t in range(threads):
 				if parent_p[t].poll():
-					frame_c = parent_p[t].recv()
-					cv2.imshow('recc', frame_c)
+					lr_list = parent_p[t].recv()
+					if lr_list != None:
+						left = lr_list[0]
+						right = lr_list[1]
+						cv2.line(frame, tuple(left), tuple(right), (255, 0, 0), 3)
+						angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
+						print(angle)	
+					cv2.imshow('recc', frame)
 
 			frame_id += 1
 
