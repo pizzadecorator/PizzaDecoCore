@@ -5,8 +5,10 @@ import dlib
 import cv2
 import math
 import time
-from multiprocessing import Process, Queue, Manager,Pipe
-import multiprocessing
+#from multiprocessing import Process, Queue, Manager,Pipe
+#import multiprocessing
+from threading import Thread
+from queue import Queue
 
 '''
 Referenced by : https://www.pyimagesearch.com/2017/04/10/detect-eyes-nose-lips-jaw-dlib-opencv-python/
@@ -19,59 +21,32 @@ Another prerequisite : 'pip install imutils'
 
 '''
 
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor('./shape_predictor_68_face_landmarks.dat')
-
-#cap = cv2.VideoCapture(0)
-#cap.set(cv2.CAP_PROP_FPS, 5)
-
-def L2(r):
-	return (150 - r.center().x)**2 + (200 - r.center().y)**2
-	
-def scale(r):
-	return r.area()
-	
-def filter(r):
-	return
-	
-def f(id,fi,fl):
+'''
+def f(id, fi, fl):
 	while True:
 		image = fi.get()
 		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-		#print("running thread"+str(id))
+		# print("running thread" + str(id))
 		
 		rects = detector(gray, 1)
 		indicators = []
-		rects = [rect for rect in rects if (150 - rect.center().x)**2 + (200 - rect.center().y)**2 < 3500]
-		rects = sorted(rects, key=scale, reverse=True)
-		#rects = sorted(rects, key=scale, reverse=True)
+		rects = [rect for rect in rects if (150 - rect.center().x) ** 2 + (200 - rect.center().y) ** 2 < 3500]
+		rects = sorted(rects, key=lambda rect: rect.area(), reverse=True)
 		
 		if len(rects) == 0: 
 			fl.send(None)
 			continue
-		rect_mean = rects[0]
-		#print(str(id) + str(rect_mean.center()))
-		'''
-		for (i, rect) in enumerate(rects):
-			shape = predictor(gray, rect)
-			indicators = face_utils.shape_to_np(shape)
-			#x, y, w, h = face_utils.rect_to_bb(rect)
-			#cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-			for (x, y) in indicators:
-				cv2.circle(image, (x, y), 1, (0, 0, 255), -1)
-		'''
+		rect_mean = rects[0]
 		shape = predictor(gray, rect_mean)
 		indicators = face_utils.shape_to_np(shape)
 		left = np.mean(indicators[36:42], axis=0).astype(int)
 		right = np.mean(indicators[42:48], axis=0).astype(int)
-		#cv2.line(image, tuple(left), tuple(right), (255, 0, 0), 3)
-		#angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
-
 		fl.send([left, right])
-
 fps_var = 0
+
 if __name__ == '__main__':
+
 	multiprocessing.set_start_method('spawn')
 
 	# global megaman
@@ -88,8 +63,8 @@ if __name__ == '__main__':
 		parent_p = []
 		thread_p = []
 		# procids = range(0,threads)
-		for t in range(0,threads):
-			p_t,c_t = Pipe()
+		for t in range(0, threads):
+			p_t, c_t = Pipe()
 			parent_p.append(p_t)
 			thread_p.append(c_t)
 			#print(t)
@@ -118,6 +93,7 @@ if __name__ == '__main__':
 			for t in range(threads):
 				if parent_p[t].poll():
 					lr_list = parent_p[t].recv()
+					#print(lr_list)
 					if lr_list != None:
 						left = lr_list[0]
 						right = lr_list[1]
@@ -130,44 +106,87 @@ if __name__ == '__main__':
 
 			# Hit 'q' on the keyboard to quit!
 			if cv2.waitKey(1) & 0xFF == ord('q'):
+				for process in proc:
+					process.terminate()
 				break
 				
 		cap.release()
-		cv2.destroyAllWindows()
-'''
-while(True):
-	# Capture frame-by-frame
-	ret, image = cap.read()
-	# Our operations on the frame come here
-	gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+		cv2.destroyAllWinows()
+		'''
 
-	#image = cv2.imread('./Mila_Kunis_face_tilt.jpg')
-	#gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-	
-	rects = detector(gray, 1)
+class EyeDetectingWorker(Thread):
 
-	for (i, rect) in enumerate(rects):
-		shape = predictor(gray, rect)
-		indicators = face_utils.shape_to_np(shape)
-		#x, y, w, h = face_utils.rect_to_bb(rect)
-		#cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+	def __init__(self, worker_id, img_queue, result_queue, resolution):
+		Thread.__init__(self)
+		self.id = worker_id
+		self.img_queue = img_queue
+		self.result_queue = result_queue
+		self.resolution = resolution 
 
-		for (x, y) in indicators:
-			cv2.circle(image, (x, y), 1, (0, 0, 255), -1)
+	def run(self):
+		width, height = self.resolution
+		detector = dlib.get_frontal_face_detector()
+		predictor = dlib.shape_predictor('./shape_predictor_68_face_landmarks.dat')
+		while True:
+			if not self.img_queue.empty():
+				# print("Thread " + str(self.id) + " work!!")
+				img = self.img_queue.get()
+				gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+				rects = detector(gray, 1)
+				rects = [rect for rect in rects if ((width / 2) - rect.center().x) ** 2 + ((height / 2) - rect.center().y) ** 2 < (height / 4)**2]
+				rects = sorted(rects, key=lambda rect: rect.area(), reverse=True)
+		
+				if len(rects) == 0:
+					continue
 
-	left = np.mean(indicators[36:42], axis=0).astype(int)
-	right = np.mean(indicators[42:48], axis=0).astype(int)
-	cv2.line(image, tuple(left), tuple(right), (255, 0, 0), 3)
-	angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
+				shape = predictor(gray, rects[0])
+				indicators = face_utils.shape_to_np(shape)
+				left = np.mean(indicators[36:42], axis=0).astype(int)
+				right = np.mean(indicators[42:48], axis=0).astype(int)
+				self.result_queue.put((left, right))
 
-	print(str(angle) + ' degree!!')
-	
-	cv2.imshow("output", image)
-	if cv2.waitKey(1) & 0xFF == ord('q'):
-		break
-	#cv2.waitKey(0)
-	#cv2.destroyAllWindows()
+if __name__ == '__main__':
 
-cap.release()
-cv2.destroyAllWindows()
-'''
+	cap = cv2.VideoCapture(0)
+	cap.set(cv2.CAP_PROP_FPS, 60)
+	cap.set(cv2.CAP_PROP_FRAME_WIDTH, 400)
+	cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
+	resolution = (cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+	img_queue = Queue(maxsize=20)
+	result_queue = Queue(maxsize=20)
+
+	NUM_WORKER = 8
+
+	workers = []
+
+	for worker_id in range(NUM_WORKER):
+		worker = EyeDetectingWorker(worker_id, img_queue, result_queue, resolution)
+		workers.append(worker)
+		worker.daemon = True
+		worker.start()
+
+	frame_id = 0
+	left, right = (None, None)
+	while True:
+		# Grab a single frame of video
+		ret, img = cap.read()
+		frame_id = frame_id + 1
+
+		if not img_queue.full():
+			img_queue.put(img)
+
+		#print(result_queue.qsize())
+		while not result_queue.empty():
+			left, right = result_queue.get()
+			angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
+			print("Current angle is : " + str(angle))
+
+		if left is not None and right is not None:
+			cv2.line(img, tuple(left), tuple(right), (255, 0, 0), 3)
+
+		cv2.imshow('recc', img)
+
+		if cv2.waitKey(1) & 0xFF == ord('q'):
+			cap.release()
+			cv2.destroyAllWindows()
+			break
