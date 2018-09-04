@@ -196,7 +196,6 @@ if __name__ == '__main__':
 			angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
 			print("Current angle is : " + str(angle))
 			ser.write(angle+180)
-			ser.write(b'\n')
 
 		if left is not None and right is not None:
 			cv2.line(img, tuple(left), tuple(right), (255, 0, 0), 3)
