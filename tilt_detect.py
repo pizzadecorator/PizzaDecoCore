@@ -151,13 +151,10 @@ if __name__ == '__main__':
 	'''
 	' code for serial communication with arduino board
 	'''
-	ser = serial.Serial(
-    	port='\\\\.\\COM4',
-    	baudrate=115200,
-    	parity=serial.PARITY_ODD,
-    	stopbits=serial.STOPBITS_ONE,
-    	bytesize=serial.EIGHTBITS
-	)
+
+
+	ser = serial.Serial('COM4', 115200)
+
 	if ser.isOpen(): 
 		ser.close()
 	ser.open()
@@ -195,7 +192,8 @@ if __name__ == '__main__':
 			left, right = result_queue.get()
 			angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
 			print("Current angle is : " + str(angle))
-			ser.write(angle+180)
+			ser.write(str(angle).encode('ascii'))
+			ser.write(b'\n')
 
 		if left is not None and right is not None:
 			cv2.line(img, tuple(left), tuple(right), (255, 0, 0), 3)
