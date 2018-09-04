@@ -5,6 +5,7 @@ import dlib
 import cv2
 import math
 import time
+import serial
 #from multiprocessing import Process, Queue, Manager,Pipe
 #import multiprocessing
 from threading import Thread
@@ -147,7 +148,21 @@ class EyeDetectingWorker(Thread):
 
 if __name__ == '__main__':
 
-	cap = cv2.VideoCapture(0)
+	'''
+	' code for serial communication with arduino board
+	'''
+	ser = serial.Serial(
+    	port='\\\\.\\COM4',
+    	baudrate=115200,
+    	parity=serial.PARITY_ODD,
+    	stopbits=serial.STOPBITS_ONE,
+    	bytesize=serial.EIGHTBITS
+	)
+	if ser.isOpen(): 
+		ser.close()
+	ser.open()
+
+	cap = cv2.VideoCapture(1)
 	cap.set(cv2.CAP_PROP_FPS, 60)
 	cap.set(cv2.CAP_PROP_FRAME_WIDTH, 400)
 	cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
@@ -180,6 +195,8 @@ if __name__ == '__main__':
 			left, right = result_queue.get()
 			angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
 			print("Current angle is : " + str(angle))
+			ser.write(angle+180)
+			ser.write(b'\n')
 
 		if left is not None and right is not None:
 			cv2.line(img, tuple(left), tuple(right), (255, 0, 0), 3)
