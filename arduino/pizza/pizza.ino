@@ -137,19 +137,19 @@ void setup(){
 
 void chili_activate() {
   //have to decide angle and speed
-  Encoder_1.move(60, 30);
+  Encoder_1.move(45-(Encoder_1.getCurPos()-default_angle1), 15);
 }
 void chili_deactivate() {
-  Encoder_1.move(-60, 30);
+  Encoder_1.move(-Encoder_1.getCurPos()+default_angle1, 15);
 }
 
 void cheese_activate() {
   Encoder_2.runSpeed(120);
-  Encoder_3.move(90, 30);
+  Encoder_3.move(90-(Encoder_3.getCurPos() - default_angle3), 15);
 }
 void cheese_deactivate() {
   Encoder_2.runSpeed(0);
-  Encoder_3.move(-90, 30);
+  Encoder_3.move(-Encoder_3.getCurPos()+default_angle3, 15);
 }
 
 void set_motor_default() {
@@ -218,36 +218,45 @@ void loop(){
           flag = 2;
         }
         else {
+          flag = 0;
           set_motor_default();  
         }
     }
   }
   else { 
     if(Serial.available() {
-      //default angle manipulation 
+      //default angle manipulation
+      //you can manipulate the defalut angle of chili/cheese
+      //using serial input start with a or b
+      //while giving no input to ultrasonic sensor. 
       String order = Serial.readStringUntil('\n');
       if(order == null) {
-        
+        //do nothing
+        flag = 0;
       }
       else {
         if(order[0] == 'a') {
           angle = order.substring(1).toInt();
           flag = 3;
-          Encder_1.move();
+          Encder_1.move(angle, 15);
+          default_angle1 += angle;
         }
         else if (order[1] == 'b') {
           angle = order.substring(1).toInt();
           flag = 3;
-          Encoder_3.move();
+          Encoder_3.move(angle, 15);
+          default_angle3 += angle;
         }
         else {
           //do nothing
+          flag = 0;
         }
       }
       
     }
     else {
       //default
+      flag = 0;
       set_motor_default();
     }
   }
