@@ -11,6 +11,10 @@ MeEncoderOnBoard Encoder_2(SLOT2);
 MeEncoderOnBoard Encoder_3(SLOT3);
 MeEncoderOnBoard Encoder_4(SLOT4);
 
+int default_angle1 = 0;
+int default_angle2 = 0;
+int default_angle3 = 0;
+
 void isr_process_encoder1(void)
 {
       if(digitalRead(Encoder_1.getPortB()) == 0){
@@ -95,7 +99,7 @@ void moveDegrees(int direction,long degrees, int speed_temp)
 
 double angle_rad = PI/180.0;
 double angle_deg = 180.0/PI;
-double angle;
+int angle_head;
 MeSerial se;
 MeUltrasonicSensor ultrasonic_8(8);
 
@@ -115,96 +119,139 @@ void setup(){
     Encoder_2.setRatio(46.67);
     Encoder_2.setPosPid(1.8,0,1.2);
     Encoder_2.setSpeedPid(0.18,0,0);
+    default_angle2 = Encoder_2.getCurPos();
     attachInterrupt(Encoder_3.getIntNum(), isr_process_encoder3, RISING);
     Encoder_3.setPulse(8);
     Encoder_3.setRatio(46.67);
     Encoder_3.setPosPid(1.8,0,1.2);
     Encoder_3.setSpeedPid(0.18,0,0);
+    default_angle3 = Encoder_3.getCurPos();
     attachInterrupt(Encoder_1.getIntNum(), isr_process_encoder1, RISING);
     Encoder_1.setPulse(8);
     Encoder_1.setRatio(46.67);
     Encoder_1.setPosPid(1.8,0,1.2);
     Encoder_1.setSpeedPid(0.18,0,0);
+    default_angle1 = Encoder_1.getCurPos();
     
 }
 
-boolean isLoop = false;
+void chili_activate() {
+  //have to decide angle and speed
+  Encoder_1.move(60, 30);
+}
+void chili_deactivate() {
+  Encoder_1.move(-60, 30);
+}
+
+void cheese_activate() {
+  Encoder_2.runSpeed(120);
+  Encoder_3.move(90, 30);
+}
+void cheese_deactivate() {
+  Encoder_2.runSpeed(0);
+  Encoder_3.move(-90, 30);
+}
+
+void set_motor_default() {
+  if (flag == 1) {
+    chili_deactivate();
+  }
+  else if(flag == 2) {
+    cheese_deactivate();
+  }
+  else {
+    //stop everything
+    Encoder_1.runSpeed(0);
+    Encoder_2.runSpeed(0);
+    Encoder_3.runSpeed(0);
+  }
+  flag = 3;
+}
+
+int flag = 0;
+/*
+ * 0 : default
+ * 1 : chili
+ * 2 : cheese
+ * 3 : default angle manipulation 
+ */
+
 void loop(){
+  Serial.println(Encoder_3.getCurPos());
+  /*
+   * Encoder_1: Chili Sauce Motor
+   * Encoder_2: Cheese banging Motor
+   * Encoder_3: Cheese lid opening Motor
+   */
+   
+  if ((ultrasonic_8.distanceCm()) < 10) {
     if(Serial.available()){
-        
         String temp = Serial.readStringUntil('\n');
-        angle = temp.toFloat();
-        
-        if((ultrasonic_8.distanceCm()) < (10)){
-            if((angle) < (-20)){
-              Serial.println("hotsauce: " + temp);
-              Encoder_1.runSpeed(10);
-              Encoder_2.runSpeed(0);
-           Encoder_3.runSpeed(0);
-                /*if(isLoop == false) {
-                  isLoop = true;
-                  Encoder_2.runSpeed(0);
-                  Encoder_3.runSpeed(0);
-                  Encoder_1.move(360,abs(60));
-                }
-                else {
-              
-                }*/
-                
-            }
-            else if((angle) > (20)){
-              Serial.println("cheese" + temp);
-              Encoder_1.runSpeed(-10);
-              Encoder_2.runSpeed(0);
-           Encoder_3.runSpeed(0);
-              /*
-                if(isLoop == false) {
-                    isLoop = true;
-                    Encoder_1.runSpeed(0);
-                    Encoder_2.move(360,abs(60));
-                    Encoder_3.runSpeed(60);
-                }
-                else {
-                
-                }
-                */
-            }
-            else {
-              Serial.print("stop"+temp);
-              Encoder_1.runSpeed(0);
-              Encoder_2.runSpeed(0);
-              Encoder_3.runSpeed(10);
-              /*
-              isLoop = false;
-              Encoder_1.runSpeed(0);
-              Encoder_2.runSpeed(0);
-              Encoder_3.runSpeed(0);
-              angle = 0;
-              */
-            }
+        angle_head = temp.toInt();
+        if(angle > 25) {
+          //chili
+          if (flag == 1) {
+            //nothing to do 
+          }
+          else if (flag == 2) {
+            chili_activate();
+            cheese_deactivate(); 
+          }
+          else {
+            //flag 0 and 3: just activate chili
+            chili_activate();
+          }
+          flag = 1;
+        }
+        else if (angle < -25) {
+          //cheese
+          if (flag == 1) {
+            chili_deactivate();
+            cheese_activate();
+          }
+          else if (flag == 2) {
+            //continue
+          }
+          else {
+            cheese_activate();
+          }
+          flag = 2;
         }
         else {
-           Serial.print("outofrange"+temp);
-           Encoder_1.runSpeed(0);
-           Encoder_2.runSpeed(10);
-           Encoder_3.runSpeed(0);
-          /*
-          isLoop = false;
-          angle = 0;
-           Encoder_1.runSpeed(0);
-           Encoder_2.runSpeed(0);
-           Encoder_3.runSpeed(0);
-           */
+          set_motor_default();  
         }
+    }
+  }
+  else { 
+    if(Serial.available() {
+      //default angle manipulation 
+      String order = Serial.readStringUntil('\n');
+      if(order == null) {
         
+      }
+      else {
+        if(order[0] == 'a') {
+          angle = order.substring(1).toInt();
+          flag = 3;
+          Encder_1.move();
+        }
+        else if (order[1] == 'b') {
+          angle = order.substring(1).toInt();
+          flag = 3;
+          Encoder_3.move();
+        }
+        else {
+          //do nothing
+        }
+      }
+      
     }
-    else { 
-      //Encoder_1.runSpeed(0);
-      //Encoder_2.runSpeed(0);
-      //Encoder_3.runSpeed(0);
-      //Serial.println("Serial not available");
+    else {
+      //default
+      set_motor_default();
     }
-    _loop();
+  }
+  _loop();
 }
 
 void _delay(float seconds){
@@ -218,7 +265,5 @@ void _loop(){
     Encoder_3.loop();
     
     Encoder_1.loop();
-    
-    
 }
 
