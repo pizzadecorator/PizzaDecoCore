@@ -11,12 +11,6 @@ MeEncoderOnBoard Encoder_2(SLOT2);
 MeEncoderOnBoard Encoder_3(SLOT3);
 MeEncoderOnBoard Encoder_4(SLOT4);
 
-int default_angle1 = 0;
-int default_angle2 = 0;
-int default_angle3 = 0;
-
-int flag = 0; 
-int angle = 0;
 
 void isr_process_encoder1(void)
 {
@@ -102,7 +96,7 @@ void moveDegrees(int direction,long degrees, int speed_temp)
 
 double angle_rad = PI/180.0;
 double angle_deg = 180.0/PI;
-int angle_head;
+int angle;
 MeSerial se;
 MeUltrasonicSensor ultrasonic_8(8);
 
@@ -138,55 +132,31 @@ void setup(){
     
 }
 
-void chili_activate() {
-  //have to decide angle and speed
-  //Encoder_1.runSpeed(60);
-  //Encoder_1.move(60-(Encoder_1.getCurPos()-default_angle1), 8);
-  Encoder_1.moveTo(60, 8);
-}
-void chili_deactivate() {
-  //Encoder_1.runSpeed(0);
-  //Encoder_1.move(-Encoder_1.getCurPos()+default_angle1, 8);
-  Encoder_1.moveTo(-5, 8);
-}
+int encoder_1_angle = 0;
+int encoder_2_angle = 0;
+int encoder_3_angle = 0;
+int encoder_1_speed = 0;
+int encoder_2_speed = 0;
+int encoder_3_speed = 0;
 
-void cheese_activate() {
-  Encoder_2.runSpeed(140);
-  //Encoder_3.move(90-(Encoder_3.getCurPos() - default_angle3), 30);
-  Encoder_3.moveTo(90, 30);
+void set_state_1() {
+  encoder_1_angle = 60;
+  encoder_1_speed = 8;
+  encoder_2_speed = 0;
+  encoder_3_angle = 0;
+  encoder_3_speed = 30;
 }
-
-void cheese_deactivate() {
-  Encoder_2.runSpeed(0);
-  //Encoder_3.move(-Encoder_3.getCurPos() + default_angle3, 30);
-  Encoder_3.moveTo(-5, 30);
+void set_state_2() {
+  encoder_1_angle = 0;
+  encoder_3_speed = 30;
 }
-
-void set_motor_default() {
-  if (flag == 1) {
-    chili_deactivate();
-  }
-  else if(flag == 2) {
-    cheese_deactivate();
-  }
-  flag = 0;  
-  /*
-  else {
-    //stop everything
-    Encoder_1.runSpeed(0);
-    Encoder_2.runSpeed(0);
-    Encoder_3.runSpeed(0);
-  }
-  */
-  flag = 3;
+void set_state_3() {
+  encoder_1_angle = 0;
+  encoder_1_speed = 8;
+  encoder_2_speed = 0;
+  encoder_3_angle = 0;
+  encoder_3_speed = 30;
 }
-
-/*
- * 0 : default
- * 1 : chili
- * 2 : cheese
- * 3 : default angle manipulation 
- */
 
 void loop(){
   /*
@@ -200,81 +170,36 @@ void loop(){
         String temp = Serial.readStringUntil('\n');
         angle = temp.toInt();
         if(angle > 25) {
-          //chili
-          if (flag == 1) {
-            //nothing to do 
-          }
-          else if (flag == 2) {
-            chili_activate();
-            cheese_deactivate(); 
-          }
-          else {
-            //flag 0 and 3: just activate chili
-            chili_activate();
-          }
-          flag = 1;
+          set_state_1();
         }
         else if (angle < -25) {
-          //cheese
-          if (flag == 1) {
-            chili_deactivate();
-            cheese_activate();
-          }
-          else if (flag == 2) {
-            //continue
-          }
-          else {
-            cheese_activate();
-          }
-          flag = 2;
+          set_state_2();
         }
         else {
-          set_motor_default();
+          set_state_0();
         }
     }
   }
-  else { 
-    if(Serial.available()) {
-      //default angle manipulation
-      //you can manipulate the defalut angle of chili/cheese
-      //using serial input start with a or b
-      //while giving no input to ultrasonic sensor. 
-      String order = Serial.readStringUntil('\n');
-      if(order == NULL) {
-        //do nothing
-        flag = 0;
-      }
-      else {
-        if(order[0] == 'a') {
-          angle = order.substring(1).toInt();
-          flag = 3;
-          Encoder_1.move(angle, 15);
-          default_angle1 += angle;
+  else {
+    if(Serial.available()){
+        String temp = Serial.readStringUntil('\n');
+        angle = temp.toInt();
+        if(angle != NULL) {
+          if(angle[0] == 'a') {
+            encoder_1_angle += angle;
+            encoder_1_speed = 30;
+          }
+          else if angle[1] == 'b') {
+            encoder_2_angle += angle;
+            encoder_2_speed = 30;
+          }
         }
-        else if (order[0] == 'b') {
-          angle = order.substring(1).toInt();
-          flag = 3;
-          Encoder_3.move(angle, 15);
-          default_angle3 += angle;
-        }
-        else {
-          //do nothing
-          flag = 0;
-        }
-      }
-      
     }
-    else {
-      //default
-      if (flag != 3) {
-        flag = 0;
-        set_motor_default();
-      }
-      else {
-        //do nothing
-      }
-    }
+
   }
+  Encoder_1.moveTo(encoder_1_angle, encoder_1_speed);
+  Encoder_2.runSpeed(encoder_2_speed);
+  Encoder_3.moveTo(encoder_3_angle, encoder_3_speed);  
   _loop();
 }
 
