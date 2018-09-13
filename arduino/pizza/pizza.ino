@@ -135,27 +135,24 @@ void setup(){
 int encoder_1_angle = 0;
 int encoder_2_angle = 0;
 int encoder_3_angle = 0;
-int encoder_1_speed = 0;
+int encoder_1_speed = 8;
 int encoder_2_speed = 0;
-int encoder_3_speed = 0;
+int encoder_3_speed = 30;
 
 void set_state_1() {
   encoder_1_angle = 60;
-  encoder_1_speed = 8;
   encoder_2_speed = 0;
   encoder_3_angle = 0;
-  encoder_3_speed = 30;
 }
 void set_state_2() {
   encoder_1_angle = 0;
-  encoder_3_speed = 30;
+  encoder_2_speed = 150;
+  encoder_3_angle = 90;
 }
-void set_state_3() {
+void set_state_0() {
   encoder_1_angle = 0;
-  encoder_1_speed = 8;
   encoder_2_speed = 0;
   encoder_3_angle = 0;
-  encoder_3_speed = 30;
 }
 
 void loop(){
@@ -190,8 +187,8 @@ void loop(){
             encoder_1_speed = 30;
           }
           else if angle[1] == 'b') {
-            encoder_2_angle += angle;
-            encoder_2_speed = 30;
+            encoder_3_angle += angle;
+            encoder_3_speed = 30;
           }
         }
     }
