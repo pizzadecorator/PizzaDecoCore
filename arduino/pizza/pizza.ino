@@ -116,20 +116,16 @@ void setup(){
     Encoder_2.setRatio(46.67);
     Encoder_2.setPosPid(1.8,0,1.2);
     Encoder_2.setSpeedPid(0.18,0,0);
-    default_angle2 = Encoder_2.getCurPos();
     attachInterrupt(Encoder_3.getIntNum(), isr_process_encoder3, RISING);
     Encoder_3.setPulse(8);
     Encoder_3.setRatio(46.67);
     Encoder_3.setPosPid(1.8,0,1.2);
     Encoder_3.setSpeedPid(0.18,0,0);
-    default_angle3 = Encoder_3.getCurPos();
     attachInterrupt(Encoder_1.getIntNum(), isr_process_encoder1, RISING);
     Encoder_1.setPulse(8);
     Encoder_1.setRatio(46.67);
     Encoder_1.setPosPid(1.8,0,1.2);
-    Encoder_1.setSpeedPid(0.18,0,0);
-    default_angle1 = Encoder_1.getCurPos();
-    
+    Encoder_1.setSpeedPid(0.18,0,0);    
 }
 
 int encoder_1_angle = 0;
@@ -141,16 +137,22 @@ int encoder_3_speed = 30;
 
 void set_state_1() {
   encoder_1_angle = 60;
+  encoder_1_speed = 8;
+  encoder_3_speed = 30;
   encoder_2_speed = 0;
   encoder_3_angle = 0;
 }
 void set_state_2() {
   encoder_1_angle = 0;
+  encoder_1_speed = 8;
+  encoder_3_speed = 30;
   encoder_2_speed = 150;
   encoder_3_angle = 90;
 }
 void set_state_0() {
   encoder_1_angle = 0;
+  encoder_1_speed = 8;
+  encoder_3_speed = 30;
   encoder_2_speed = 0;
   encoder_3_angle = 0;
 }
@@ -180,19 +182,21 @@ void loop(){
   else {
     if(Serial.available()){
         String temp = Serial.readStringUntil('\n');
-        angle = temp.toInt();
-        if(angle != NULL) {
-          if(angle[0] == 'a') {
+        if(temp != NULL) {
+          angle = temp.substring(1).toInt();
+          if(temp[0] == 'a') {
             encoder_1_angle += angle;
             encoder_1_speed = 30;
           }
-          else if angle[1] == 'b') {
+          else if(temp[1] == 'b') {
             encoder_3_angle += angle;
             encoder_3_speed = 30;
           }
         }
     }
-
+    else {
+      set_state_0();
+    }
   }
   Encoder_1.moveTo(encoder_1_angle, encoder_1_speed);
   Encoder_2.runSpeed(encoder_2_speed);
