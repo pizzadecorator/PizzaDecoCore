@@ -134,6 +134,7 @@ int encoder_3_angle = 0;
 int encoder_1_speed = 8;
 int encoder_2_speed = 0;
 int encoder_3_speed = 30;
+int sign = 1;
 
 void set_state_1() {
   encoder_1_angle = 60;
@@ -141,13 +142,14 @@ void set_state_1() {
   encoder_3_speed = 30;
   encoder_2_speed = 0;
   encoder_3_angle = 0;
+  Serial.write("set state 1\n");
 }
 void set_state_2() {
   encoder_1_angle = 0;
   encoder_1_speed = 8;
   encoder_3_speed = 30;
   encoder_2_speed = 150;
-  encoder_3_angle = 90;
+  encoder_3_angle = 200;
 }
 void set_state_0() {
   encoder_1_angle = 0;
@@ -155,6 +157,19 @@ void set_state_0() {
   encoder_3_speed = 30;
   encoder_2_speed = 0;
   encoder_3_angle = 0;
+  Serial.write("set state 0\n");
+}
+
+void move_to(MeEncoderOnBoard* encoder, int angle, int move_speed) {
+  int curr_pos = encoder->getCurPos();
+  if (curr_pos != angle) {
+    if (abs(angle - curr_pos) > 0 && abs(angle - curr_pos) < 10) {
+      int buffer_angle = curr_pos < angle ? 8 : -8;
+      encoder->moveTo(angle + buffer_angle, move_speed);
+    } else {
+      encoder->moveTo(angle, move_speed);  
+    }
+  }
 }
 
 void loop(){
@@ -175,6 +190,7 @@ void loop(){
           set_state_2();
         }
         else {
+          Serial.write("init");
           set_state_0();
         }
     }
@@ -186,27 +202,31 @@ void loop(){
           angle = temp.substring(1).toInt();
           if(temp[0] == 'a') {
             encoder_1_angle += angle;
-            encoder_1_speed = 30;
+            encoder_1_speed = 8;
           }
-          else if(temp[1] == 'b') {
+          else if(temp[0] == 'b') {
+            sign = angle > 0 ? 1 : -1;
             encoder_3_angle += angle;
             encoder_3_speed = 30;
+            Serial.println(encoder_3_angle);
+          } 
+          else if (temp[0] == 'c') {
+            set_state_0();
           }
         }
     }
-    else {
-      set_state_0();
-    }
   }
-  Encoder_1.moveTo(encoder_1_angle, encoder_1_speed);
+
+  move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
   Encoder_2.runSpeed(encoder_2_speed);
-  Encoder_3.moveTo(encoder_3_angle, encoder_3_speed);  
+  move_to(&Encoder_3, encoder_3_angle, encoder_3_speed);
   _loop();
 }
 
 void _delay(float seconds){
     long endTime = millis() + seconds * 1000;
-    while(millis() < endTime)_loop();
+    while(millis() < endTime)
+      _loop();
 }
 
 void _loop(){
