@@ -4,13 +4,14 @@
 
 #include <MeMegaPi.h>
 
-
 //Encoder Motor
 MeEncoderOnBoard Encoder_1(SLOT1);
 MeEncoderOnBoard Encoder_2(SLOT2);
 MeEncoderOnBoard Encoder_3(SLOT3);
 MeEncoderOnBoard Encoder_4(SLOT4);
 
+MeMegaPiDCMotor gripper(12);
+int grip_duration = 100;
 
 void isr_process_encoder1(void)
 {
@@ -68,6 +69,7 @@ void move(int direction, int speed)
       Encoder_1.setTarPWM(rightSpeed);
       Encoder_2.setTarPWM(leftSpeed);
 }
+
 void moveDegrees(int direction,long degrees, int speed_temp)
 {
       speed_temp = abs(speed_temp);
@@ -99,8 +101,6 @@ double angle_deg = 180.0/PI;
 int angle;
 MeSerial se;
 MeUltrasonicSensor ultrasonic_8(8);
-
-
 
 void setup(){
     //Set Pwm 8KHz
@@ -134,7 +134,6 @@ int encoder_3_angle = 0;
 int encoder_1_speed = 8;
 int encoder_2_speed = 0;
 int encoder_3_speed = 30;
-int sign = 1;
 
 void set_state_1() {
   encoder_1_angle = 60;
@@ -142,7 +141,6 @@ void set_state_1() {
   encoder_3_speed = 30;
   encoder_2_speed = 0;
   encoder_3_angle = 0;
-  Serial.write("set state 1\n");
 }
 void set_state_2() {
   encoder_1_angle = 0;
@@ -157,7 +155,6 @@ void set_state_0() {
   encoder_3_speed = 30;
   encoder_2_speed = 0;
   encoder_3_angle = 0;
-  Serial.write("set state 0\n");
 }
 
 void move_to(MeEncoderOnBoard* encoder, int angle, int move_speed) {
@@ -205,7 +202,6 @@ void loop(){
             encoder_1_speed = 8;
           }
           else if(temp[0] == 'b') {
-            sign = angle > 0 ? 1 : -1;
             encoder_3_angle += angle;
             encoder_3_speed = 30;
             Serial.println(encoder_3_angle);
@@ -220,7 +216,22 @@ void loop(){
   move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
   Encoder_2.runSpeed(encoder_2_speed);
   move_to(&Encoder_3, encoder_3_angle, encoder_3_speed);
+  move_gripper();
   _loop();
+}
+
+void move_gripper() {
+  
+  if (encoder_1_speed == 0) {
+    grip_duration = 100;
+    return;
+  }
+  
+  _delay(1);
+  int dir = encoder_1_speed > 0 ? 1 : -1;
+  while (grip_duration-- > 0) {
+    gripper.run(100 * dir);
+  }
 }
 
 void _delay(float seconds){
@@ -236,4 +247,3 @@ void _loop(){
     
     Encoder_1.loop();
 }
-
