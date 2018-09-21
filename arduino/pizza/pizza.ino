@@ -4,14 +4,15 @@
 
 #include <MeMegaPi.h>
 
+
 //Encoder Motor
 MeEncoderOnBoard Encoder_1(SLOT1);
 MeEncoderOnBoard Encoder_2(SLOT2);
 MeEncoderOnBoard Encoder_3(SLOT3);
 //MeEncoderOnBoard Encoder_4(SLOT4);
 
-//MeMegaPiDCMotor gripper(PORT4B);
-MeDCMotor gripper(12);
+MeMegaPiDCMotor gripper(1);
+//MeDCMotor gripper(12);
 int grip_duration = 100;
 int target_time = millis();
 bool pending_time = false;
@@ -136,6 +137,7 @@ void setup(){
     Encoder_2.setRatio(46.67);
     Encoder_2.setPosPid(1.8,0,1.2);
     Encoder_2.setSpeedPid(0.18,0,0);  
+
 }
 
 int encoder_1_angle = 0;
@@ -206,7 +208,13 @@ void loop(){
    * Encoder_2: Cheese banging Motor
    */
 
-  //gripper.run(250);
+
+  gripper.run(200);
+  _delay(1);
+  gripper.run(-200);
+  _delay(1);
+
+
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     if (input[0] == 'a' || input[0] == 'b' || input[0] == 'c') {
@@ -219,6 +227,8 @@ void loop(){
           break;
         case 'b':
           set_time_out(0.5);
+          angle = angle > 255 ? 255 : angle;
+          angle = angle < -255 ? -255 : angle;
           gripper.run(angle);
           break;
         case 'c':
@@ -238,7 +248,7 @@ void loop(){
   }
   if (is_time_out()) {
     Serial.println("time out called");
-    //gripper.stop();
+    gripper.stop();
   }
   move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
   Encoder_2.runSpeed(encoder_2_speed);
