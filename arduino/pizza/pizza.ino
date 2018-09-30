@@ -14,20 +14,57 @@ MeEncoderOnBoard Encoder_3(SLOT3);
 MeMegaPiDCMotor gripper(1);
 //MeDCMotor gripper(12);
 int grip_duration = 100;
-int target_time = millis();
+unsigned long target_time = millis();
 bool pending_time = false;
+bool is_moveto = false;
+unsigned long gripper_target = millis();
+bool gripper_pending = false;
+bool gripper_isopen = true;
 
 bool is_time_out() {
-  if (pending_time && millis() > target_time) {
-    pending_time = false;
-    return true;
+  if (pending_time) {
+    if (millis() > target_time) {
+      pending_time = false;
+      Serial.println("encoder ended");
+      return true;
+    }
+    if (millis() + 5000 < target_time) {
+      target_time = millis() + 500;
+    }
+    return false;
   }
-  return false;
+  return true;
+}
+
+bool is_gripper_timeout() {
+  if (gripper_pending) {
+    if (millis() > gripper_target) {
+      gripper_pending = false;
+      Serial.println("gripper ended");
+      return true;
+    }
+    if (millis() + 5000 < gripper_target) {
+      gripper_target = millis() + 500;
+    }
+    return false;
+  }
+  return true;
 }
 
 bool set_time_out(float seconds) {
+  Serial.println("---------set_time_out---------------");
+  Serial.println(millis());
   pending_time = true;
   target_time = millis() + seconds * 1000;
+  Serial.println(target_time);
+}
+
+bool set_gripper_timeout(float seconds) {
+  Serial.println("---------gripper_set_timeout---------------");
+  Serial.println(millis());
+  gripper_pending = true;
+  gripper_target = millis() + seconds * 1000;
+  Serial.println(gripper_target);
 }
 
 void isr_process_encoder1(void)
@@ -136,49 +173,84 @@ void setup(){
     Encoder_2.setPulse(8);
     Encoder_2.setRatio(46.67);
     Encoder_2.setPosPid(1.8,0,1.2);
-    Encoder_2.setSpeedPid(0.18,0,0);  
-
+    Encoder_2.setSpeedPid(0.18,0,0); 
+    attachInterrupt(Encoder_3.getIntNum(), isr_process_encoder3, RISING);
+    Encoder_3.setPulse(8);
+    Encoder_3.setRatio(46.67);
+    Encoder_3.setPosPid(1.8,0,1.2);
+    Encoder_3.setSpeedPid(0.18,0,0); 
 }
 
 int encoder_1_angle = 0;
 int encoder_2_angle = 0;
-int encoder_1_speed = 8;
+int encoder_3_angle = 0;
+int encoder_1_speed = 6;
 int encoder_2_speed = 0;
+int encoder_3_speed = 0;
 int state = 0;
 
 void set_state(int next_state) {
   if (state == next_state) {
     return;
   }
-
+  
   switch (next_state) {
+    // hot sauce
     case 1:
       encoder_1_angle = 60;
-      encoder_1_speed = 8;
+      encoder_1_speed = 20;
       encoder_2_speed = 0;
       Serial.println("state 1");
-      gripper.run(100);
+      if (state != 1) {
+        go_down(&Encoder_1, -30, 2);
+      } else {
+        if (!pending_time) {
+          set_gripper_timeout(500);
+          if (gripper_isopen) {
+            gripper.run(255);
+            gripper_isopen = false;
+          } else {
+            gripper.run(-200);
+            gripper_isopen = true;
+          }
+        }
+      }
+      
       break;
+    // cheese powder
     case 2:
       encoder_1_angle = 0;
-      encoder_1_speed = 8;
+      encoder_1_speed = 20;
       encoder_2_speed = 60;
       if (state == 1) {
-        Serial.println("state 2, gripper run");
-        gripper.run(-100);
+        if (!gripper_isopen) {
+          set_gripper_timeout(500);
+          gripper.run(-200);
+          gripper_isopen = true;
+        }
       }
+      move_to(&Encoder_1, 0, 30);
       break;
     default:
       encoder_1_angle = 0;
-      encoder_1_speed = 8;
+      encoder_1_speed = 20;
       encoder_2_speed = 0;
       if (state == 1) {
-        Serial.println("state 0, gripper run");
-        gripper.run(-100); 
+        if (!gripper_isopen) {
+          set_gripper_timeout(500);
+          gripper.run(-200);
+          gripper_isopen = true;
+        }
       }
+      move_to(&Encoder_1, 0, 30);
       break;
   }
   state = next_state;
+}
+
+void go_down(MeEncoderOnBoard* encoder, int move_speed, int wait_time) {
+  set_time_out(wait_time);
+  encoder->runSpeed(move_speed);
 }
 
 void move_to(MeEncoderOnBoard* encoder, int angle, int move_speed) {
@@ -187,16 +259,19 @@ void move_to(MeEncoderOnBoard* encoder, int angle, int move_speed) {
     if (abs(angle - curr_pos) > 0 && abs(angle - curr_pos) < 10) {
       int buffer_angle = curr_pos < angle ? 8 : -8;
       encoder->moveTo(angle + buffer_angle, move_speed);
+      is_moveto = false;
     } else {
-      encoder->moveTo(angle, move_speed);  
+      encoder->moveTo(angle, move_speed);
     }
+  } else {
+    is_moveto = false;
   }
 }
 
 int get_state(int tilt_angle) {
-  if (tilt_angle > 25) {
+  if (tilt_angle > 20) {
     return 1;
-  } else if (tilt_angle < -25) {
+  } else if (tilt_angle < -20) {
     return 2;
   }
   return 0;
@@ -207,32 +282,49 @@ void loop(){
    * Encoder_1: Chili Sauce Motor
    * Encoder_2: Cheese banging Motor
    */
-
-
-  gripper.run(200);
-  _delay(1);
-  gripper.run(-200);
-  _delay(1);
-
-
+  
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
-    if (input[0] == 'a' || input[0] == 'b' || input[0] == 'c') {
+    if (input[0] >= 'a' && input[0] <= 'z') {
       // DEBUG
       angle = input.substring(1).toInt();
       switch(input[0]) {
         case 'a':
-          encoder_1_angle += angle;
-          encoder_1_speed = 8;
+          if (angle == NULL) {
+            set_state(1); 
+          } else {
+            set_time_out(3);
+            Encoder_1.runSpeed(angle);
+          }
           break;
         case 'b':
-          set_time_out(0.5);
-          angle = angle > 255 ? 255 : angle;
-          angle = angle < -255 ? -255 : angle;
-          gripper.run(angle);
+          if (angle == NULL) {
+            set_state(2);
+          } else {
+            set_gripper_timeout(500);
+            angle = angle > 255 ? 255 : angle;
+            angle = angle < -255 ? -255 : angle;
+            gripper.run(angle);
+          }
           break;
         case 'c':
           set_state(0);
+          break;
+        case 'd':
+          encoder_1_angle += angle;
+          encoder_1_speed = 20;
+          is_moveto = true;
+          break;
+        case 'e':
+          set_time_out(1.2);
+          Encoder_3.runSpeed(angle);
+          break;
+        case 'f':
+          encoder_3_angle += angle;
+          encoder_3_speed = 60;
+          break;
+        case 'g':
+          encoder_2_speed = angle;
           break;
       }
     } else {
@@ -246,12 +338,22 @@ void loop(){
       }
     }
   }
+  
   if (is_time_out()) {
-    Serial.println("time out called");
-    gripper.stop();
+    Encoder_1.runSpeed(0);
+    Encoder_3.runSpeed(0);
+    //gripper.run(0);
   }
-  move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
+  if(is_gripper_timeout()) {
+    gripper.run(0);
+  }
+
+  if (is_moveto) {
+    move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
+  }
+  //move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
   Encoder_2.runSpeed(encoder_2_speed);
+  //move_to(&Encoder_3, encoder_3_angle, encoder_3_speed);
   _loop();
 }
 
@@ -264,4 +366,5 @@ void _delay(float seconds){
 void _loop(){
     Encoder_1.loop();
     Encoder_2.loop();
+    Encoder_3.loop();
 }
