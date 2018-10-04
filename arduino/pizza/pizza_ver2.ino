@@ -19,6 +19,8 @@ unsigned long gripper_target = millis();
 bool gripper_pending = false;
 bool gripper_isopen = true;
 bool gripper_working = false;
+bool is_up = true;
+bool encoder_working = false;
 int queue_count = 0;
 const int QUEUE_SIZE = 5;
 
@@ -44,11 +46,11 @@ bool is_gripper_timeout() {
       Serial.println("gripper ended");
       return true;
     }
-    
+    /*
     if (millis() + 5000 < gripper_target) {
       gripper_target = millis() + 500;
     }
-    
+    */
     return false;
   }
   return true;
@@ -210,11 +212,14 @@ void set_state(int next_state) {
     case 1:
       encoder_2_speed = 0;
       if (state != 1) {
+        /*
         encoder_1_angle += -110;
         encoder_1_speed = 20;
         is_moveto = true;
-        gripper_working = true;
-        //set_gripper_timeout(500);
+        */
+        is_moveto = false;
+        encoder_working = true;
+        //gripper_working = true;
         //go_down(&Encoder_1, -30, 2);
       } else {
         /*
@@ -236,33 +241,42 @@ void set_state(int next_state) {
     // cheese powder
     case 2:
       encoder_1_angle = 0;
-      encoder_1_speed = 30;
+      encoder_1_speed = 60;
       encoder_2_speed = 60;
+      encoder_working = false;
       if (state == 1) {
         // DEBUG
         is_moveto = true;
+        //encoder_working = false;
+        /*
         gripper_working = false;
         //gripper.run(0);
         if (!gripper_isopen) {
           set_gripper_timeout(1);
           move_gripper(50);
         }
+        */
       }
       break;
+    case 0:
     default:
       encoder_1_angle = 0;
-      encoder_1_speed = 30;
+      encoder_1_speed = 60;
       encoder_2_speed = 0;
+      encoder_working = false;
       if (state == 1) {
-        //set_time_out(2);
-        //Encoder_3.runSpeed(60);
+        set_time_out(5);
+        Encoder_3.runSpeed(60);
         is_moveto = true;
+        encoder_working = false;
+        /*
         gripper_working = false;
         //gripper.run(0);
         if (!gripper_isopen) {
           set_gripper_timeout(1);
           move_gripper(50);
         }
+        */
       }
       break;
   }
@@ -290,14 +304,25 @@ void move_to(MeEncoderOnBoard* encoder, int angle, int move_speed) {
 }
 
 void move_gripper(int move_speed) {
-  set_gripper_timeout(100);
+  _delay(0.8);
+  set_gripper_timeout(2);
   if (gripper_isopen) {
     gripper.run(move_speed);
     gripper_isopen = false;
-    _delay(1);
   } else {
     gripper.run(-move_speed);
     gripper_isopen = true;
+  }
+}
+
+void move_updown(int angle) {
+  if(is_up) {
+    move_to(&Encoder_1, angle, -60);
+    is_up = false;
+    _delay(1);
+  } else {
+    move_to(&Encoder_1, 0, 60);
+    is_up = true;
     _delay(1);
   }
 }
@@ -345,16 +370,14 @@ void loop(){
           break;
         case 'd':
           encoder_1_angle += angle;
-          encoder_1_speed = 20;
+          encoder_1_speed = 30;
           is_moveto = true;
           break;
         case 'e':
-          set_time_out(1.2);
-          Encoder_3.runSpeed(angle);
+          encoder_working = true;
           break;
         case 'f':
-          encoder_3_angle += angle;
-          encoder_3_speed = 60;
+          encoder_working = false;
           break;
         case 'g':
           encoder_2_speed = angle;
@@ -362,7 +385,7 @@ void loop(){
       }
     } else {
       // RELEASE
-      if (ultrasonic_8.distanceCm() < 10) {
+      if (ultrasonic_8.distanceCm() < 30) {
         angle = input.toInt();
         int next_state = get_state(angle);
         set_state(next_state);
@@ -383,11 +406,18 @@ void loop(){
 
   if (is_moveto) {
     move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
-  } else {
+  }
+  /* 
+  else {
     if (gripper_working) {
       move_gripper(130);
     }
   }
+  */
+  if (encoder_working) {
+    move_updown(80);
+  }
+  
   Encoder_2.runSpeed(encoder_2_speed);
   _loop();
 }
