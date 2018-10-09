@@ -43,7 +43,7 @@ class EyeDetectingWorker(Thread):
 				img = self.img_queue.get()
 				gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 				rects = detector(gray, 1)
-				rects = [rect for rect in rects if ((width / 2) - rect.center().x) ** 2 + ((height / 2) - rect.center().y) ** 2 < (height / 4)**2]
+				rects = [rect for rect in rects if ((width / 2) - rect.center().x) ** 2 + ((height / 2) - rect.center().y) ** 2 < (height / 3)**2]
 				rects = sorted(rects, key=lambda rect: rect.area(), reverse=True)
 		
 				if len(rects) == 0:
