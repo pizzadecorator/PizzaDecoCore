@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '/usr/local/lib/python3.5/site-packages/')
+
 from imutils import face_utils
 import numpy as np
 import imutils
@@ -21,100 +24,6 @@ and command 'pip install dlib-19.8.1-cp36-cp36m-win_amd64.whl'
 Another prerequisite : 'pip install imutils'
 
 '''
-
-'''
-def f(id, fi, fl):
-	while True:
-		image = fi.get()
-		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-		# print("running thread" + str(id))
-		
-		rects = detector(gray, 1)
-		indicators = []
-		rects = [rect for rect in rects if (150 - rect.center().x) ** 2 + (200 - rect.center().y) ** 2 < 3500]
-		rects = sorted(rects, key=lambda rect: rect.area(), reverse=True)
-		
-		if len(rects) == 0: 
-			fl.send(None)
-			continue
-
-		rect_mean = rects[0]
-		shape = predictor(gray, rect_mean)
-		indicators = face_utils.shape_to_np(shape)
-		left = np.mean(indicators[36:42], axis=0).astype(int)
-		right = np.mean(indicators[42:48], axis=0).astype(int)
-		fl.send([left, right])
-fps_var = 0
-
-if __name__ == '__main__':
-
-	multiprocessing.set_start_method('spawn')
-
-	# global megaman
-	with Manager() as manager:
-		cap = cv2.VideoCapture(0)
-		cap.set(cv2.CAP_PROP_FPS, 60)
-		cap.set(cv2.CAP_PROP_FRAME_WIDTH, 400)
-		cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
-		fi = Queue(maxsize=20)
-
-		threads = 8
-		proc = []
-
-		parent_p = []
-		thread_p = []
-		# procids = range(0,threads)
-		for t in range(0, threads):
-			p_t, c_t = Pipe()
-			parent_p.append(p_t)
-			thread_p.append(c_t)
-			#print(t)
-			proc.append(Process(target=f, args=(t,fi,thread_p[t])))
-			proc[t].start()
-
-		useframe = False
-
-		frame_id = 0
-		while True:
-			# Grab a single frame of video
-			ret, frame = cap.read()
-			#cv2.imshow('Video', frame)
-
-			if frame_id%2 == 0:
-				if not fi.full():
-					fi.put(frame)
-					#print(frame_id)
-
-					#cv2.imshow('Video', frame)
-
-					#print("FPS: ", int(1.0 / (time.time() - fps_var)))
-					fps_var = time.time()
-
-			#GET ALL DETECTIONS
-			for t in range(threads):
-				if parent_p[t].poll():
-					lr_list = parent_p[t].recv()
-					#print(lr_list)
-					if lr_list != None:
-						left = lr_list[0]
-						right = lr_list[1]
-						cv2.line(frame, tuple(left), tuple(right), (255, 0, 0), 3)
-						angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
-						print(angle)	
-					cv2.imshow('recc', frame)
-
-			frame_id += 1
-
-			# Hit 'q' on the keyboard to quit!
-			if cv2.waitKey(1) & 0xFF == ord('q'):
-				for process in proc:
-					process.terminate()
-				break
-				
-		cap.release()
-		cv2.destroyAllWinows()
-		'''
-
 class EyeDetectingWorker(Thread):
 
 	def __init__(self, worker_id, img_queue, result_queue, resolution):
@@ -153,21 +62,21 @@ if __name__ == '__main__':
 	'''
 
 
-	ser = serial.Serial('COM4', 115200)
+	ser = serial.Serial('/dev/ttyUSB0', 115200)
 
 	if ser.isOpen(): 
 		ser.close()
 	ser.open()
 
-	cap = cv2.VideoCapture(1)
+	cap = cv2.VideoCapture(0)
 	cap.set(cv2.CAP_PROP_FPS, 60)
-	cap.set(cv2.CAP_PROP_FRAME_WIDTH, 400)
-	cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
+	cap.set(cv2.CAP_PROP_FRAME_WIDTH, 200)
+	cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 150)
 	resolution = (cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 	img_queue = Queue(maxsize=20)
 	result_queue = Queue(maxsize=20)
 
-	NUM_WORKER = 8
+	NUM_WORKER = 4
 
 	workers = []
 
@@ -179,7 +88,10 @@ if __name__ == '__main__':
 
 	frame_id = 0
 	left, right = (None, None)
+	angle_prev = 0
+	angle_log = [0, 0, 0, 0, 0]
 	while True:
+		angle = 0
 		# Grab a single frame of video
 		ret, img = cap.read()
 		frame_id = frame_id + 1
@@ -188,13 +100,19 @@ if __name__ == '__main__':
 			img_queue.put(img)
 
 		#print(result_queue.qsize())
-		while not result_queue.empty():
+		if not result_queue.empty():
 			left, right = result_queue.get()
 			angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
-			print("Current angle is : " + str(angle))
+		for i in range(0, 4) :
+			angle_log[i] = angle_log[i+1]
+		angle_log[4] = angle
+		angle_mean = np.mean(angle_log)
+		print("Current angle is : " + str(angle_mean))
+		if(abs(angle_mean)-25)*(abs(angle_prev)-25) < 0 :
 			ser.write(str(angle).encode('ascii'))
 			ser.write(b'\n')
-
+		angle_prev = angle_mean
+		
 		if left is not None and right is not None:
 			cv2.line(img, tuple(left), tuple(right), (255, 0, 0), 3)
 
@@ -204,3 +122,14 @@ if __name__ == '__main__':
 			cap.release()
 			cv2.destroyAllWindows()
 			break
+		if cv2.waitKey(1) & 0xFF == ord('w'):
+			print('debug mode start')
+			while(True) :
+				inputstr = input()
+				if inputstr == 'w':
+					print('debug mode end')
+					break
+				else :
+					print(inputstr)
+					ser.write(inputstr.encode('ascii'))
+					ser.write(b'\n')
