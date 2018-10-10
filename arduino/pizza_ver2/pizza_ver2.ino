@@ -28,7 +28,7 @@ bool is_time_out() {
   if (pending_time) {
     if (millis() > target_time) {
       pending_time = false;
-      Serial.println("encoder ended");
+      //Serial.println("encoder ended");
       return true;
     }
     if (millis() + 5000 < target_time) {
@@ -43,7 +43,7 @@ bool is_gripper_timeout() {
   if (gripper_pending) {
     if (millis() > gripper_target) {
       gripper_pending = false;
-      Serial.println("gripper ended");
+      //Serial.println("gripper ended");
       return true;
     }
     /*
@@ -57,19 +57,19 @@ bool is_gripper_timeout() {
 }
 
 bool set_time_out(float seconds) {
-  Serial.println("---------set_time_out---------------");
-  Serial.println(millis());
+  //Serial.println("---------set_time_out---------------");
+  //Serial.println(millis());
   pending_time = true;
   target_time = millis() + seconds * 1000;
-  Serial.println(target_time);
+  //Serial.println(target_time);
 }
 
 bool set_gripper_timeout(float seconds) {
-  Serial.println("---------gripper_set_timeout---------------");
-  Serial.println(millis());
+  //Serial.println("---------gripper_set_timeout---------------");
+  //Serial.println(millis());
   gripper_pending = true;
   gripper_target = millis() + seconds * 1000;
-  Serial.println(gripper_target);
+  //Serial.println(gripper_target);
 }
 
 void isr_process_encoder1(void)
@@ -242,21 +242,19 @@ void set_state(int next_state) {
     case 2:
       encoder_1_angle = 0;
       encoder_1_speed = 60;
-      encoder_2_speed = 60;
+      encoder_2_speed = 80;
       encoder_working = false;
-      if (state == 1) {
-        // DEBUG
-        is_moveto = true;
-        //encoder_working = false;
-        /*
-        gripper_working = false;
-        //gripper.run(0);
-        if (!gripper_isopen) {
-          set_gripper_timeout(1);
-          move_gripper(50);
-        }
-        */
+      //Serial.write("RESPONSE: in case 2");
+      is_moveto = true;
+      // encoder_working = false;
+      /*
+      gripper_working = false;
+      //gripper.run(0);
+      if (!gripper_isopen) {
+        set_gripper_timeout(1);
+        move_gripper(50);
       }
+      */
       break;
     case 0:
     default:
@@ -264,11 +262,13 @@ void set_state(int next_state) {
       encoder_1_speed = 60;
       encoder_2_speed = 0;
       encoder_working = false;
+      //Serial.write("RESPONSE: in case 0");
       if (state == 1) {
-        set_time_out(5);
-        Encoder_3.runSpeed(60);
+        
+        //set_time_out(5);
+        //Encoder_3.runSpeed(60);
         is_moveto = true;
-        encoder_working = false;
+        //encoder_working = false;
         /*
         gripper_working = false;
         //gripper.run(0);
@@ -328,9 +328,9 @@ void move_updown(int angle) {
 }
 
 int get_state(int tilt_angle) {
-  if (tilt_angle > 20) {
+  if (tilt_angle > 15) {
     return 1;
-  } else if (tilt_angle < -20) {
+  } else if (tilt_angle < -15) {
     return 2;
   }
   return 0;
@@ -385,13 +385,16 @@ void loop(){
       }
     } else {
       // RELEASE
-      if (ultrasonic_8.distanceCm() < 30) {
+//      if (ultrasonic_8.distanceCm() < 20) {
+//        angle = input.toInt();
+//        int next_state = get_state(angle);
+//        set_state(next_state);
+//      } else {
+//        set_state(0);
+//      }
         angle = input.toInt();
         int next_state = get_state(angle);
         set_state(next_state);
-      } else {
-        set_state(0);
-      }
     }
   }
   

@@ -19,8 +19,7 @@ unsigned long gripper_target = millis();
 bool gripper_pending = false;
 bool gripper_isopen = true;
 bool gripper_working = false;
-int queue_count = 0;
-const int QUEUE_SIZE = 5;
+bool gripper_count = 0;
 
 bool is_time_out() {
   if (pending_time) {
@@ -210,8 +209,8 @@ void set_state(int next_state) {
     case 1:
       encoder_2_speed = 0;
       if (state != 1) {
-        encoder_1_angle += -110;
-        encoder_1_speed = 20;
+        //encoder_1_angle += -250;
+        //encoder_1_speed = 60;
         is_moveto = true;
         gripper_working = true;
         //set_gripper_timeout(500);
@@ -240,12 +239,12 @@ void set_state(int next_state) {
       encoder_2_speed = 60;
       if (state == 1) {
         // DEBUG
-        is_moveto = true;
+        //is_moveto = true;
         gripper_working = false;
         //gripper.run(0);
         if (!gripper_isopen) {
           set_gripper_timeout(1);
-          move_gripper(50);
+          gripper.run(-255);
         }
       }
       break;
@@ -256,12 +255,12 @@ void set_state(int next_state) {
       if (state == 1) {
         //set_time_out(2);
         //Encoder_3.runSpeed(60);
-        is_moveto = true;
+        //is_moveto = true;
         gripper_working = false;
         //gripper.run(0);
         if (!gripper_isopen) {
           set_gripper_timeout(1);
-          move_gripper(50);
+          gripper.run(-255);
         }
       }
       break;
@@ -292,11 +291,16 @@ void move_to(MeEncoderOnBoard* encoder, int angle, int move_speed) {
 void move_gripper(int move_speed) {
   set_gripper_timeout(100);
   if (gripper_isopen) {
-    gripper.run(move_speed);
+    gripper.run(200);
     gripper_isopen = false;
     _delay(1);
   } else {
-    gripper.run(-move_speed);
+    if(++gripper_count >= 5) {
+      gripper.run(-255);
+      gripper_count = 0;
+    } else {
+      gripper.run(-180);
+    }
     gripper_isopen = true;
     _delay(1);
   }
@@ -385,7 +389,7 @@ void loop(){
     move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
   } else {
     if (gripper_working) {
-      move_gripper(130);
+      move_gripper(220);
     }
   }
   Encoder_2.runSpeed(encoder_2_speed);
