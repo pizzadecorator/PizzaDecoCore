@@ -11,6 +11,7 @@ import time
 import serial
 #from multiprocessing import Process, Queue, Manager,Pipe
 #import multiprocessing
+from threading import Timer
 from threading import Thread
 from queue import Queue
 
@@ -55,19 +56,23 @@ class EyeDetectingWorker(Thread):
 				right = np.mean(indicators[42:48], axis=0).astype(int)
 				self.result_queue.put((left, right))
 
+'''
+def send_state(st) :
+	if ser.isOpen():
+		ser.close()
+	ser.open()
+	print("Serial write current state : " + str(st))
+	ser.write(str(st).encode('ascii'))
+	ser.write(b'\n')
+'''
+
 if __name__ == '__main__':
-
-	'''
-	' code for serial communication with arduino board
-	'''
-
 
 	ser = serial.Serial('/dev/ttyUSB0', 115200)
 
-	if ser.isOpen(): 
-		ser.close()
-	ser.open()
-
+	'''
+	 code for serial communication with arduino board
+	'''
 	cap = cv2.VideoCapture(0)
 	cap.set(cv2.CAP_PROP_FPS, 60)
 	cap.set(cv2.CAP_PROP_FRAME_WIDTH, 200)
@@ -86,33 +91,60 @@ if __name__ == '__main__':
 		worker.daemon = True
 		worker.start()
 
+
 	frame_id = 0
 	left, right = (None, None)
 	angle_prev = 0
 	angle_log = [0, 0, 0, 0, 0]
+
+	state = 0
+
 	while True:
 		angle = 0
 		# Grab a single frame of video
 		ret, img = cap.read()
 		frame_id = frame_id + 1
-
+		
 		if not img_queue.full():
 			img_queue.put(img)
-
-		#print(result_queue.qsize())
-		if not result_queue.empty():
+		
+		if not result_queue.empty() :
 			left, right = result_queue.get()
 			angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
+
+		if ser.in_waiting:
+			print("RESPONSE: " + str(ser.readline()))
+
 		for i in range(0, 4) :
 			angle_log[i] = angle_log[i+1]
 		angle_log[4] = angle
 		angle_mean = np.mean(angle_log)
-		print("Current angle is : " + str(angle_mean))
-		if(abs(angle_mean)-25)*(abs(angle_prev)-25) < 0 :
-			ser.write(str(angle).encode('ascii'))
-			ser.write(b'\n')
-		angle_prev = angle_mean
 		
+		print("Current angle is : " + str(angle_mean))
+		
+		if (angle_mean > 15) and (angle_prev <= 15) :
+			state = 1
+			# send_state(state)
+			ser.write(str(state).encode('ascii'))
+			ser.write(b'\n')
+			#print("state 1")
+		elif (angle_mean < -15) and (angle_prev >= -15) :
+			state = 2
+			ser.write(str(state).encode('ascii'))
+			ser.write(b'\n')
+			# send_state(state)
+			#print("state 2")
+		elif (abs(angle_mean) <= 15) and (abs(angle_prev) > 15) : 
+			state = 0
+			ser.write(str(state).encode('ascii'))
+			ser.write(b'\n')
+			#print("state 0")
+			# send_state(state)
+		#else :
+		#	print("state: " + str(state))
+
+		angle_prev = angle_mean
+
 		if left is not None and right is not None:
 			cv2.line(img, tuple(left), tuple(right), (255, 0, 0), 3)
 
@@ -121,15 +153,20 @@ if __name__ == '__main__':
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			cap.release()
 			cv2.destroyAllWindows()
+			ser.close()
 			break
 		if cv2.waitKey(1) & 0xFF == ord('w'):
 			print('debug mode start')
+			ser.close()
 			while(True) :
 				inputstr = input()
 				if inputstr == 'w':
+					ser.open()
 					print('debug mode end')
 					break
 				else :
-					print(inputstr)
-					ser.write(inputstr.encode('ascii'))
-					ser.write(b'\n')
+					if(inputstr[0] == 'b') or (inputstr[0] == 'd') :
+						ser.open()				
+						ser.write(inputstr.encode('ascii'))
+						ser.write(b'\n')
+						ser.close()
