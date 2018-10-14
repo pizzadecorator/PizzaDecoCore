@@ -68,21 +68,20 @@ def send_state(st) :
 
 if __name__ == '__main__':
 
-	ser = serial.Serial('/dev/ttyUSB0', 115200)
+	ser = serial.Serial('COM4', 115200)
 
 	'''
 	 code for serial communication with arduino board
 	'''
-	cap = cv2.VideoCapture(0)
+	cap = cv2.VideoCapture(1)
 	cap.set(cv2.CAP_PROP_FPS, 60)
-	cap.set(cv2.CAP_PROP_FRAME_WIDTH, 200)
-	cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 150)
+	cap.set(cv2.CAP_PROP_FRAME_WIDTH, 400)
+	cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
 	resolution = (cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 	img_queue = Queue(maxsize=20)
 	result_queue = Queue(maxsize=20)
 
 	NUM_WORKER = 4
-
 	workers = []
 
 	for worker_id in range(NUM_WORKER):
@@ -98,6 +97,7 @@ if __name__ == '__main__':
 	angle_log = [0, 0, 0, 0, 0]
 
 	state = 0
+	blocked = False
 
 	while True:
 		angle = 0
@@ -120,8 +120,8 @@ if __name__ == '__main__':
 		angle_log[4] = angle
 		angle_mean = np.mean(angle_log)
 		
-		print("Current angle is : " + str(angle_mean))
-		
+		#print("Current angle is : " + str(angle_mean))
+	
 		if (angle_mean > 15) and (angle_prev <= 15) :
 			state = 1
 			# send_state(state)
@@ -155,18 +155,26 @@ if __name__ == '__main__':
 			cv2.destroyAllWindows()
 			ser.close()
 			break
+		
+		if cv2.waitKey(1) & 0xFF == ord('b'):
+			if blocked is False:
+				blocked = not blocked
+				ser.close()
+			else:
+				ser.open()
+			
 		if cv2.waitKey(1) & 0xFF == ord('w'):
 			print('debug mode start')
-			ser.close()
-			while(True) :
+			while True :
+				if ser.in_waiting:
+					print("RESPONSE: " + str(ser.readline()))
+				print("before input")
 				inputstr = input()
+				print("after input")
 				if inputstr == 'w':
-					ser.open()
 					print('debug mode end')
 					break
 				else :
 					if(inputstr[0] == 'b') or (inputstr[0] == 'd') :
-						ser.open()				
 						ser.write(inputstr.encode('ascii'))
 						ser.write(b'\n')
-						ser.close()

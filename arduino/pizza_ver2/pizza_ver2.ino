@@ -23,6 +23,7 @@ bool is_up = true;
 bool encoder_working = false;
 int queue_count = 0;
 const int QUEUE_SIZE = 5;
+int quantity_mode = 0;
 
 bool is_time_out() {
   if (pending_time) {
@@ -201,42 +202,15 @@ void flush_buffer(int sec) {
 }
 
 void set_state(int next_state) {
-  /*
   if (state == next_state) {
     return;
   }
-  */
-  
   switch (next_state) {
     // hot sauce
     case 1:
-      encoder_2_speed = 0;
-      if (state != 1) {
-        /*
-        encoder_1_angle += -110;
-        encoder_1_speed = 20;
-        is_moveto = true;
-        */
-        is_moveto = false;
-        encoder_working = true;
-        //gripper_working = true;
-        //go_down(&Encoder_1, -30, 2);
-      } else {
-        /*
-        if (!is_moveto) {          
-          set_gripper_timeout(1);
-          if (gripper_isopen) {
-            _delay(0.5);
-            gripper.run(150);
-            gripper_isopen = false;
-          } else {
-            _delay(0.5);
-            gripper.run(-150);
-            gripper_isopen = true;
-          }
-        } 
-        */
-      }
+      encoder_2_speed = 0;    
+      is_moveto = false;
+      encoder_working = true;
       break;
     // cheese powder
     case 2:
@@ -246,37 +220,15 @@ void set_state(int next_state) {
       encoder_working = false;
       //Serial.write("RESPONSE: in case 2");
       is_moveto = true;
-      // encoder_working = false;
-      /*
-      gripper_working = false;
-      //gripper.run(0);
-      if (!gripper_isopen) {
-        set_gripper_timeout(1);
-        move_gripper(50);
-      }
-      */
       break;
+      
     case 0:
-    default:
       encoder_1_angle = 0;
       encoder_1_speed = 60;
       encoder_2_speed = 0;
       encoder_working = false;
-      //Serial.write("RESPONSE: in case 0");
       if (state == 1) {
-        
-        //set_time_out(5);
-        //Encoder_3.runSpeed(60);
         is_moveto = true;
-        //encoder_working = false;
-        /*
-        gripper_working = false;
-        //gripper.run(0);
-        if (!gripper_isopen) {
-          set_gripper_timeout(1);
-          move_gripper(50);
-        }
-        */
       }
       break;
   }
@@ -343,8 +295,11 @@ void loop(){
    */
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
+    char copy[50];
+    input.toCharArray(copy, 50);
+    Serial.write(copy);
+    Serial.write('\n');
     if (input[0] >= 'a' && input[0] <= 'z') {
-      // DEBUG
       angle = input.substring(1).toInt();
       switch(input[0]) {
         case 'a':
@@ -392,15 +347,15 @@ void loop(){
 //      } else {
 //        set_state(0);
 //      }
-        angle = input.toInt();
-        int next_state = get_state(angle);
+        int next_state = input.toInt();
+        // int next_state = get_state(angle);
         set_state(next_state);
     }
   }
   
   if (is_time_out()) {
     Encoder_1.runSpeed(0);
-    Encoder_3.runSpeed(0);
+    //Encoder_3.runSpeed(0);
     //gripper.run(0);
   }
   if(is_gripper_timeout()) {
@@ -410,13 +365,7 @@ void loop(){
   if (is_moveto) {
     move_to(&Encoder_1, encoder_1_angle, encoder_1_speed);
   }
-  /* 
-  else {
-    if (gripper_working) {
-      move_gripper(130);
-    }
-  }
-  */
+
   if (encoder_working) {
     move_updown(80);
   }
