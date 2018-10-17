@@ -21,9 +21,9 @@ bool gripper_isopen = true;
 bool gripper_working = false;
 bool is_up = true;
 bool encoder_working = false;
-int queue_count = 0;
-const int QUEUE_SIZE = 5;
-int quantity_mode = 0;
+bool is_ultrasonic = false;
+int encoder_1_config_angle = 180;
+int encoder_1_config_speed = 60;
 
 bool is_time_out() {
   if (pending_time) {
@@ -211,13 +211,16 @@ void set_state(int next_state) {
       encoder_2_speed = 0;    
       is_moveto = false;
       encoder_working = true;
+      move_to(&Encoder_3, -120, 150);
       break;
     // cheese powder
     case 2:
       encoder_1_angle = 0;
       encoder_1_speed = 60;
-      encoder_2_speed = 80;
+      encoder_2_speed = 100;
       encoder_working = false;
+      move_to(&Encoder_3, 120, 150);
+
       //Serial.write("RESPONSE: in case 2");
       is_moveto = true;
       break;
@@ -267,15 +270,23 @@ void move_gripper(int move_speed) {
   }
 }
 
-void move_updown(int angle) {
+void move_updown() {
   if(is_up) {
-    move_to(&Encoder_1, angle, -60);
-    is_up = false;
-    _delay(1);
+    if (is_time_out()) {
+      //Serial.write("up: true time out\n");
+      set_time_out(2);
+      move_to(&Encoder_1, -encoder_1_config_angle, encoder_1_config_speed);
+      is_up = false;
+    }
+    //_delay(3);
   } else {
-    move_to(&Encoder_1, 0, 60);
-    is_up = true;
-    _delay(1);
+    if (is_time_out()) {
+      //Serial.write("up:false time out\n");
+      set_time_out(1);
+      move_to(&Encoder_1, 0, encoder_1_config_speed);
+      is_up = true;
+    }
+    //_delay(1);
   }
 }
 
@@ -293,6 +304,14 @@ void loop(){
    * Encoder_1: Chili Sauce Motor
    * Encoder_2: Cheese banging Motor
    */
+  //Serial.write("ultrasonic: ");
+  //Serial.write((int)ultrasonic_8.distanceCm());
+  //Serial.write('\n');
+  if (ultrasonic_8.distanceCm() < 14) {
+    is_ultrasonic = true;
+  } else {
+    is_ultrasonic = false;
+  }
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     char copy[50];
@@ -303,12 +322,7 @@ void loop(){
       angle = input.substring(1).toInt();
       switch(input[0]) {
         case 'a':
-          if (angle == NULL) {
-            set_state(1); 
-          } else {
-            set_time_out(3);
-            Encoder_1.runSpeed(angle);
-          }
+          encoder_1_config_angle = angle;
           break;
         case 'b':
           if (angle == NULL) {
@@ -329,35 +343,36 @@ void loop(){
           is_moveto = true;
           break;
         case 'e':
-          encoder_working = true;
+          encoder_1_config_speed = angle;
           break;
         case 'f':
-          encoder_working = false;
+          move_to(&Encoder_3, angle, 60);
           break;
         case 'g':
           encoder_2_speed = angle;
           break;
+        case 'h': // arrow angle set
+          move_to(&Encoder_3, -angle * 2, 120);
+          break;
       }
     } else {
       // RELEASE
-//      if (ultrasonic_8.distanceCm() < 20) {
-//        angle = input.toInt();
-//        int next_state = get_state(angle);
-//        set_state(next_state);
-//      } else {
-//        set_state(0);
-//      }
+      if (is_ultrasonic) {
+        //angle = input.toInt();
+        //int next_state = get_state(angle);
+        int next_state = input.toInt();
+        set_state(next_state);
+      } else {
+        set_state(0);
+      }
+      /*
         int next_state = input.toInt();
         // int next_state = get_state(angle);
         set_state(next_state);
+       */
     }
   }
   
-  if (is_time_out()) {
-    Encoder_1.runSpeed(0);
-    //Encoder_3.runSpeed(0);
-    //gripper.run(0);
-  }
   if(is_gripper_timeout()) {
     gripper.run(0);
   }
@@ -367,7 +382,7 @@ void loop(){
   }
 
   if (encoder_working) {
-    move_updown(80);
+    move_updown();
   }
   
   Encoder_2.runSpeed(encoder_2_speed);

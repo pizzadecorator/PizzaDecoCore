@@ -48,6 +48,7 @@ class EyeDetectingWorker(Thread):
 				rects = sorted(rects, key=lambda rect: rect.area(), reverse=True)
 		
 				if len(rects) == 0:
+					self.result_queue.put((None, None))
 					continue
 
 				shape = predictor(gray, rects[0])
@@ -94,13 +95,16 @@ if __name__ == '__main__':
 	frame_id = 0
 	left, right = (None, None)
 	angle_prev = 0
+	tilt_speed = 0
 	angle_log = [0, 0, 0, 0, 0]
 
 	state = 0
 	blocked = False
+	undetected_stack = 0
+	zero_count = 0
+	angle = 0
 
 	while True:
-		angle = 0
 		# Grab a single frame of video
 		ret, img = cap.read()
 		frame_id = frame_id + 1
@@ -110,40 +114,60 @@ if __name__ == '__main__':
 		
 		if not result_queue.empty() :
 			left, right = result_queue.get()
-			angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
+			if left is None or right is None:
+				undetected_stack += 1
+				if undetected_stack >= 10:
+					angle = 0
+			else:
+				undetected_stack = 0
+				angle = int(math.atan((right[1] - left[1]) / (right[0] - left[0])) * 180 / math.pi)
 
 		if ser.in_waiting:
 			print("RESPONSE: " + str(ser.readline()))
 
-		for i in range(0, 4) :
-			angle_log[i] = angle_log[i+1]
-		angle_log[4] = angle
-		angle_mean = np.mean(angle_log)
+		# for i in range(0, 4) :
+			# angle_log[i] = angle_log[i+1]
+		# angle_log[4] = angle
+		# angle_mean = np.mean(angle_log)
+		tilt_speed = tilt_speed * 0.4 + (angle - angle_prev) * 0.6 * 60
+		# print(tilt_speed)
 		
 		#print("Current angle is : " + str(angle_mean))
 	
-		if (angle_mean > 15) and (angle_prev <= 15) :
+		if (angle > 15) and (angle_prev <= 15) and abs(tilt_speed) >= 200:
 			state = 1
 			# send_state(state)
 			ser.write(str(state).encode('ascii'))
 			ser.write(b'\n')
 			#print("state 1")
-		elif (angle_mean < -15) and (angle_prev >= -15) :
+		elif (angle < -15) and (angle_prev >= -15) and abs(tilt_speed) >= 200:
 			state = 2
 			ser.write(str(state).encode('ascii'))
 			ser.write(b'\n')
 			# send_state(state)
 			#print("state 2")
-		elif (abs(angle_mean) <= 15) and (abs(angle_prev) > 15) : 
+		elif (abs(angle) <= 15) and (abs(angle_prev) > 15) and abs(tilt_speed) >= 200: 
 			state = 0
 			ser.write(str(state).encode('ascii'))
 			ser.write(b'\n')
 			#print("state 0")
 			# send_state(state)
+		
+		elif (abs(angle) <= 15):
+			zero_count += 1
+			command = 'h' + str(angle)
+			ser.write(command.encode('ascii'))
+			ser.write(b'\n')
+			if (zero_count >= 10):
+				state = 0
+				ser.write(str(state).encode('ascii'))
+				ser.write(b'\n')
+				zero_count = 0
+		
 		#else :
 		#	print("state: " + str(state))
 
-		angle_prev = angle_mean
+		angle_prev = angle
 
 		if left is not None and right is not None:
 			cv2.line(img, tuple(left), tuple(right), (255, 0, 0), 3)
@@ -168,13 +192,13 @@ if __name__ == '__main__':
 			while True :
 				if ser.in_waiting:
 					print("RESPONSE: " + str(ser.readline()))
-				print("before input")
+				#print("before input")
 				inputstr = input()
-				print("after input")
+				#print("after input")
 				if inputstr == 'w':
 					print('debug mode end')
 					break
 				else :
-					if(inputstr[0] == 'b') or (inputstr[0] == 'd') :
-						ser.write(inputstr.encode('ascii'))
-						ser.write(b'\n')
+					#if(inputstr[0] == 'b') or (inputstr[0] == 'd') :
+					ser.write(inputstr.encode('ascii'))
+					ser.write(b'\n')
